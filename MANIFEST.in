@@ -1,0 +1,2 @@
+include logwatch_ai/ml_artifacts/*.pkl
+include logwatch_ai_README.md

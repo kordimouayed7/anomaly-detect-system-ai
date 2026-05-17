@@ -1,0 +1,148 @@
+Metadata-Version: 2.4
+Name: logwatch-ai
+Version: 1.0.0
+Summary: AI-powered Windows Event Log anomaly detection using Isolation Forest
+Home-page: https://github.com/mouayed-kordi/logwatch-ai
+Author: Mouayed Kordi
+Author-email: kordimouayed7@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Topic :: Security
+Classifier: Topic :: System :: Logging
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: scikit-learn
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: joblib
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# logwatch-ai
+
+AI-powered Windows Event Log anomaly detection library using Isolation Forest.
+
+This library provides a pre-trained machine learning model that analyzes Windows system logs and detects anomalous behavior in real time. It uses a 25-feature Isolation Forest model trained on real Windows Event Log data.
+
+---
+
+## Installation
+
+```bash
+pip install logwatch-ai
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/mouayed-kordi/logwatch-ai.git
+cd logwatch-ai
+pip install .
+```
+
+---
+
+## Quick Start
+
+```python
+from logwatch_ai import AnomalyDetector
+
+# Initialize the detector (loads the pre-trained model)
+detector = AnomalyDetector()
+
+# Score a single log entry
+result = detector.score_log(
+    level="ERROR",
+    message="FATAL: Database connection lost due to timeout",
+    log_type="Database",
+    cpu=85.2,
+    ram=72.1,
+)
+
+print(result)
+# Output:
+# {
+#     "is_anomaly": True,
+#     "score": -0.1234,
+#     "threshold": -0.09
+# }
+```
+
+---
+
+## API Reference
+
+### `AnomalyDetector(artifacts_path=None)`
+
+Creates a new detector instance and loads the pre-trained model.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `artifacts_path` | `str` or `None` | Path to custom `.pkl` model files. If `None`, uses the bundled pre-trained model. |
+
+### `detector.score_log(...)`
+
+Scores a single log entry for anomaly detection.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `level` | `str` | *(required)* | Log severity: `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"` |
+| `message` | `str` | *(required)* | Raw log message text |
+| `log_type` | `str` | `"Other"` | Category: `"Database"`, `"Authentication"`, `"Network"`, `"Security"`, `"System"`, `"Other"` |
+| `cpu` | `float` | `0.0` | CPU usage % at the time of the log |
+| `ram` | `float` | `0.0` | RAM usage % at the time of the log |
+| `timestamp` | `datetime` | `now()` | When the log occurred |
+| `source_key` | `str` | `"default"` | Identifier to group logs from the same source |
+
+**Returns** a `dict`:
+```python
+{
+    "is_anomaly": True,    # True if anomaly detected
+    "score": -0.1234,      # Raw Isolation Forest score
+    "threshold": -0.09     # Calibrated threshold
+}
+```
+
+### `detector.score_batch(logs)`
+
+Scores multiple log entries at once.
+
+```python
+logs = [
+    {"level": "ERROR", "message": "Connection refused", "log_type": "Network"},
+    {"level": "INFO", "message": "Service started", "log_type": "System"},
+    {"level": "CRITICAL", "message": "Disk full", "log_type": "System", "cpu": 95.0},
+]
+
+results = detector.score_batch(logs)
+for r in results:
+    print(r["is_anomaly"], r["score"])
+```
+
+---
+
+## How It Works
+
+The detector builds a **25-feature vector** for each log entry:
+
+- **Temporal features**: Rolling error counts (30s, 1m, 5m, 10m, 15m, 60m)
+- **Statistical features**: CUSUM drift tracking, error density, short/long ratios
+- **Hardware features**: CPU and RAM velocity (rate of change)
+- **Cyclical time features**: Hour and day encoded as sin/cos
+- **NLP features**: TF-IDF + SVD text encoding of the log message
+
+The Isolation Forest model scores each log. If the score falls below the calibrated threshold (`-0.09`), the log is flagged as anomalous.
+
+---
+
+## License
+
+MIT License

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sequence Diagrams — logwatch-ai</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #fff; font-family: 'Segoe UI', Arial, sans-serif; color: #000; padding: 30px 40px; }
+    .diagram-section { margin-bottom: 50px; border: 2px solid #ccc; border-radius: 8px; padding: 24px; background: #fff; }
+    h2 { font-size: 18px; color: #000; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #ddd; }
+    .mermaid { background: #fff !important; }
+    .mermaid svg { max-width: 100%; }
+    .btn-export {
+      display: inline-block; margin-top: 14px; padding: 8px 18px;
+      background: #333; color: #fff; border: none; border-radius: 5px;
+      cursor: pointer; font-size: 13px; font-weight: 600;
+    }
+    .btn-export:hover { background: #555; }
+    @media print { .btn-export { display: none; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#e8e8e8',
+        primaryTextColor: '#000',
+        primaryBorderColor: '#333',
+        lineColor: '#333',
+        secondaryColor: '#f4f4f4',
+        tertiaryColor: '#fff',
+        actorBkg: '#e0e0e0',
+        actorBorder: '#333',
+        actorTextColor: '#000',
+        actorLineColor: '#333',
+        signalColor: '#333',
+        signalTextColor: '#000',
+        labelBoxBkgColor: '#f0f0f0',
+        labelBoxBorderColor: '#333',
+        labelTextColor: '#000',
+        loopTextColor: '#000',
+        noteBkgColor: '#ffffcc',
+        noteBorderColor: '#666',
+        noteTextColor: '#000',
+        activationBkgColor: '#ddd',
+        activationBorderColor: '#333',
+        sequenceNumberColor: '#fff',
+        altSectionBkgColor: '#f5f5f5',
+      },
+      sequence: { mirrorActors: false, useMaxWidth: false, wrap: true }
+    });
+
+    function exportPNG(sectionId) {
+      const section = document.getElementById(sectionId);
+      const svg = section.querySelector('svg');
+      if (!svg) { alert('Diagram not rendered yet.'); return; }
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = function () {
+        const scale = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+
+        const a = document.createElement('a');
+        a.download = sectionId + '.png';
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+  </script>
+</head>
+<body>
+
+<div class="diagram-section" id="authentication">
+  <h2>1. Authentication (Login)</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant API as FastAPI Backend
+    participant DB as PostgreSQL
+    participant JWT as JWT Module
+
+    User->>Frontend: Enter email + password
+    Frontend->>API: POST /api/login
+    API->>DB: SELECT user WHERE email = ?
+    DB-->>API: User row
+
+    alt User not found
+        API-->>Frontend: 401 Invalid email or password
+        Frontend-->>User: Show error message
+    else Password incorrect
+        API->>API: bcrypt.checkpw() FAIL
+        API-->>Frontend: 401 Invalid email or password
+        Frontend-->>User: Show error message
+    else Success
+        API->>API: bcrypt.checkpw() OK
+        API->>JWT: create_access_token(email, user_id)
+        JWT-->>API: JWT Token (2h expiry)
+        API-->>Frontend: 200 access_token
+        Frontend->>Frontend: localStorage.setItem(token)
+        Frontend-->>User: Redirect to Dashboard
+    end
+  </pre>
+  <button class="btn-export" onclick="exportPNG('authentication')">Download PNG</button>
+</div>
+
+<div class="diagram-section" id="update_profile">
+  <h2>2. Update Profile</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant API as FastAPI Backend
+    participant DB as PostgreSQL
+
+    User->>Frontend: Click AD avatar icon
+    Frontend->>Frontend: setActiveTab(profile)
+    Frontend->>API: GET /api/profile (Bearer token)
+    API->>API: Decode JWT - extract email
+    API->>DB: SELECT user WHERE email = ?
+    DB-->>API: User (name, email, alert_email)
+    API-->>Frontend: 200 Profile data
+    Frontend-->>User: Display Profile page
+
+    User->>Frontend: Edit name / alert_email
+    User->>Frontend: Click Save Changes
+    Frontend->>API: PUT /api/profile (Bearer token)
+    API->>API: Decode JWT - extract email
+    API->>DB: UPDATE users SET name, alert_email
+    DB-->>API: Updated user row
+    API-->>Frontend: 200 Updated profile
+    Frontend-->>User: Profile updated successfully
+  </pre>
+  <button class="btn-export" onclick="exportPNG('update_profile')">Download PNG</button>
+</div>
+
+<div class="diagram-section" id="visual_dashboard">
+  <h2>3. Visual Dashboard</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Frontend as React Frontend
+    participant API as FastAPI Backend
+    participant DB as PostgreSQL
+
+    User->>Frontend: Navigate to Dashboard tab
+    Frontend->>Frontend: setActiveTab(dashboard)
+
+    par Parallel data fetching
+        Frontend->>API: GET /api/logs?anomaly_only=true
+        API->>DB: SELECT * FROM logs WHERE is_anomaly=true
+        DB-->>API: Anomaly log rows
+        API-->>Frontend: Paginated anomalies
+    and
+        Frontend->>API: GET /api/projects
+        API->>DB: SELECT * FROM projects
+        DB-->>API: Project rows
+        API-->>Frontend: Projects list
+    end
+
+    Frontend->>Frontend: Compute severity (High/Medium/Low)
+    Frontend->>Frontend: Render KPI Cards
+    Frontend->>Frontend: Render Anomaly Frequency Chart
+    Frontend->>Frontend: Render Severity Doughnut Chart
+    Frontend->>Frontend: Render Recent Anomalies Table
+    Frontend-->>User: Display complete Dashboard
+  </pre>
+  <button class="btn-export" onclick="exportPNG('visual_dashboard')">Download PNG</button>
+</div>
+
+<div class="diagram-section" id="data_processing">
+  <h2>4. Data Processing (Log Ingestion + ML Anomaly Detection)</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    actor Agent as OS Agent
+    participant WinLog as Windows Event Logs
+    participant API as FastAPI Backend
+    participant DB as PostgreSQL
+    participant ML as ML Service - Isolation Forest
+    participant Notif as Notification Engine
+    participant Email as SMTP Server
+
+    loop Every 5 seconds
+        Agent->>WinLog: Read Application/System/Security logs
+        WinLog-->>Agent: New event entries
+        Agent->>Agent: Pre-filter benign noise
+        Agent->>API: POST /api/logs/ingest (X-API-Key)
+
+        API->>API: Verify API Key - resolve project_id
+        API->>DB: INSERT INTO logs (batch)
+        DB-->>API: New log entries with IDs
+
+        loop For each log (BackgroundTask)
+            API->>ML: process_log_anomaly(log_id, features)
+            ML->>ML: Build 25-feature vector
+            ML->>ML: scaler.transform(features)
+            ML->>ML: model.decision_function(vector)
+
+            alt Score below -0.0900 - ANOMALY
+                ML->>DB: UPDATE logs SET is_anomaly=true
+                ML->>DB: SELECT alert_email FROM users
+                DB-->>ML: alert_email
+                ML->>Notif: send_alert(type, project, details, email)
+
+                alt Cooldown expired or new category
+                    Notif->>Email: Send HTML email alert
+                    Email-->>Notif: Email delivered
+                else Same category within 5 min
+                    Notif->>Notif: Throttled - skip
+                end
+
+            else Score above threshold - NORMAL
+                ML->>DB: DELETE FROM logs WHERE id=?
+            end
+        end
+
+        API-->>Agent: 200 success
+    end
+  </pre>
+  <button class="btn-export" onclick="exportPNG('data_processing')">Download PNG</button>
+</div>
+
+</body>
+</html>

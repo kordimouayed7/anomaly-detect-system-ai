@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'fastapi_backend'
+    static_configs:
+      # host.docker.internal tells Docker to look at your laptop's localhost
+      - targets: ['host.docker.internal:8000']
